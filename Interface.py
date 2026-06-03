@@ -63,8 +63,8 @@ if st.button("🔍 Analyser le risque", use_container_width=True):
     }
 
     response = requests.post(
-    "https://TON-API.onrender.com/predict",
-    json=payload
+        "http://127.0.0.1:8000/predict",
+        json=payload
     )
 
     result = response.json()
