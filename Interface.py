@@ -63,7 +63,7 @@ if st.button("🔍 Analyser le risque", use_container_width=True):
     }
 
     response = requests.post(
-        "http://127.0.0.1:8000/predict",
+        "https://projet-neovolt-5.onrender.com/predict",
         json=payload
     )
 
