@@ -9,7 +9,7 @@ app = FastAPI(
 )
 
 # Chargement du modèle
-model = joblib.load("modele_fraude.pkl")
+model = joblib.load("../modele_fraude.pkl")
 
 
 class ClientData(BaseModel):
