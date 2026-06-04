@@ -2,16 +2,12 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import joblib
 
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score
-)
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import numpy as np
 
 models = {
     "LinearRegression": LinearRegression(),
@@ -45,17 +41,18 @@ df_conso["consommation_kwh"] = (
 
 df_meteo = df_meteo.ffill()
 
+###vérifier qu’il n’y a plus de données manquantes
 print(df_conso.isnull().sum())
 print(df_meteo.isnull().sum())
 
-###Agrégation de la consommation
+###Agrégation de la consommation (j'ai regroupé les consommations par date afin d'obtenir une consommation quotidienne totale.)
 df_daily = (
     df_conso
     .groupby("date")["consommation_kwh"]
     .sum()
     .reset_index()
 )
-####Préparation météo
+####Préparation météo (groupées par jour afin d'obtenir une température moyenne quotidienne.)
 df_meteo_daily = (
     df_meteo
     .groupby("date")
@@ -66,23 +63,24 @@ df_meteo_daily = (
     })
     .reset_index()
 )
-###Fusion des données
+###Fusion des données, jeu de données unique pour l'apprentissage.
 
 df = pd.merge(df_daily, df_meteo_daily, on="date", how="left")
 
-###Création des variables
+###Création des variables Feature Engineering
 # Variables temporelles utiles
 df["jour_semaine"] = df["date"].dt.dayofweek
 df["mois"] = df["date"].dt.month
 
-# Week-end (Bon signal)
+# Week-end 
 df["weekend"] = (df["jour_semaine"].isin([5,6])).astype(int)
 
-# Lag (garder uniquement essentiels)
+# Cette variable représente la consommation de la veille
 df["lag_1"] = df["consommation_kwh"].shift(1)
+# Cette variable représente la consommation observée une semaine auparavant.
 df["lag_7"] = df["consommation_kwh"].shift(7)
 
-# Rolling (garder 1 seule)
+# Cette variable représente la moyenne des consommations des sept derniers jours
 df["rolling_7"] = df["consommation_kwh"].rolling(7).mean().shift(1)
 
 # Météo simplifiée
@@ -91,19 +89,7 @@ df["temp"] = df["temp_moyenne_c"]
 
 ###Suppression des lignes incomplètes
 df = df.dropna()
-###Visualisation
-plt.figure(figsize=(15,5))
 
-plt.plot(
-    df["date"],
-    df["consommation_kwh"]
-)
-
-plt.title("Consommation quotidienne")
-plt.xlabel("Date")
-plt.ylabel("kWh")
-
-plt.show()
 ###Définition des variables
 features = [
     "temp",
@@ -116,6 +102,7 @@ features = [
 ]
 
 target = "consommation_kwh"
+
 
 ###Séparation Train / Test
 train = df[df["date"] < "2025-07-01"]
@@ -136,7 +123,7 @@ model = RandomForestRegressor(
 
 model.fit(X_train, y_train)
 
-###Prédictions
+###Prédictions (Le modèle essaie de deviner la consommation sur les données jamais vues)
 predictions = model.predict(X_test)
 
 ###Évaluation
@@ -162,6 +149,8 @@ print(f"MAE  : {mae:.2f}")
 print(f"RMSE : {rmse:.2f}")
 print(f"R²   : {r2:.4f}")
 
+
+####Comparaison des modèles
 for name, model in models.items():
     model.fit(X_train, y_train)
     preds = model.predict(X_test)
@@ -200,6 +189,13 @@ plt.legend()
 plt.show()
 
 
-import joblib
+# Création du dossier models
+os.makedirs("models", exist_ok=True)
 
-joblib.dump(model, "models/gradient_boosting_v1.pkl")
+# Ré-entraînement du meilleur modèle (Gradient Boosting)
+best_model = GradientBoostingRegressor(random_state=42)
+best_model.fit(X_train, y_train)
+
+# Sauvegarde du modèle final
+joblib.dump(best_model, "models/gradient_boosting_v1.pkl")
+
